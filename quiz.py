@@ -19,6 +19,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from os import system,name
 
 
 from colorama import Fore, Style, init as colorama_init
@@ -34,7 +35,12 @@ class QA:
     answer_value: Optional[str]
     answer_option: Optional[str]
 
-
+def clear():
+    if name == "nt":
+        _ = system("cls")
+    else: 
+        _ = system("clear")
+        
 def normalize(s: str) -> str:
     # grading normalization only; does not modify stored data
     return re.sub(r"\s+", " ", s.strip()).lower()
@@ -147,6 +153,9 @@ def main() -> int:
 
     missed = [(qa, ua) for qa, ua, c in results if not c]
 
+    input("Press any key to continue to summary...")
+    clear()
+    
     print("=" * 80)
     print("Round Summary")
     print(f"Correct: {correct_count}/{total}")
