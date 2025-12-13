@@ -158,7 +158,7 @@ def main() -> int:
             print("-" * 80)
             print(f"Source question #{qa.qnum}")
             print(qa.question_text)
-            print(f"\nYour answer: {ua!r}")
+            print(f"{Fore.RED}\nYour answer: {ua!r}{Style.RESET_ALL}")
             print(f"{Fore.GREEN}[+] Answer>{Style.RESET_ALL}")
             print(f"{Fore.GREEN}{qa.answer_text}{Style.RESET_ALL}")
 
