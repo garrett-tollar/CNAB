@@ -27,6 +27,10 @@ def normalize(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip()).lower()
 
 
+def _split_csv_list(s: str) -> list[str]:
+    return [p.strip() for p in (s or "").split(",") if p.strip()]
+
+
 def load_random_questions(db_path: Path, count: int, seed: Optional[int]) -> list[QA]:
     rng = random.Random(seed)
 
@@ -88,21 +92,53 @@ def is_correct(user_answer: str, qa: QA, case_sensitive: bool) -> bool:
     if not ua:
         return False
 
-    # Accept option letter (e.g., "C") when provided
+    # 1) Multiple-choice with stored answer option: grade by option letter only
     if qa.answer_option:
-        if ua.strip().upper() == qa.answer_option.upper():
+        if ua.upper() == qa.answer_option.strip().upper():
             return True
 
-    # Accept the derived answer value
+        # If user answered a single letter (A/B/C/D) and it's wrong, it's wrong.
+        if len(ua) == 1 and ua.isalpha():
+            return False
+
+        # Treat MC as letter-only when answer_option exists
+        return False
+
+    # 2) Fill-in / text-based: grade against derived answer_value (preferred)
     if qa.answer_value:
+        # (10) Order-insensitive multi-answer grading for comma-separated values,
+        # unless the question explicitly requires ordering (alphabetical / reverse alphabetical).
+        qlow = (qa.question_text or "").lower()
+        order_required = ("alphabetical order" in qlow) or ("reverse alphabetical" in qlow)
+
+        if (not order_required) and ("," in qa.answer_value) and ("," in ua):
+            exp_parts = _split_csv_list(qa.answer_value)
+            user_parts = _split_csv_list(ua)
+
+            if case_sensitive:
+                if set(user_parts) == set(exp_parts):
+                    return True
+            else:
+                if set(normalize(x) for x in user_parts) == set(normalize(x) for x in exp_parts):
+                    return True
+
+        # Default: exact match (with optional normalization)
         if case_sensitive:
-            if ua.strip() == qa.answer_value.strip():
+            if ua == qa.answer_value.strip():
                 return True
         else:
             if normalize(ua) == normalize(qa.answer_value):
                 return True
 
-    # Fallback: allow matching within the raw answer text (verbatim) for edge cases
+    # 3) Fallback: whole-word/phrase match in answer_text; avoid 1-2 char traps
+    at = qa.answer_text or ""
     if case_sensitive:
-        return ua in (qa.answer_text or "")
-    return normalize(ua) in normalize(qa.answer_text or "")
+        if len(ua) < 3:
+            return False
+        return re.search(rf"\b{re.escape(ua)}\b", at) is not None
+
+    ua_n = normalize(ua)
+    at_n = normalize(at)
+    if len(ua_n) < 3:
+        return False
+    return re.search(rf"\b{re.escape(ua_n)}\b", at_n) is not None
